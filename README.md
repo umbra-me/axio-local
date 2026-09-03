@@ -1,0 +1,115 @@
+# Axio Local
+
+Run any coding agent against models served on your own machine, without
+touching the agent's real configuration.
+
+`lmrun` launches Claude Code, Codex, OpenCode, Pi, or Axio with an isolated
+configuration home and the environment variables that point it at a local
+OpenAI- and Anthropic-compatible server. When the agent exits, the launcher
+verifies that the agent's real configuration files are byte-identical to how it
+found them, and restores any that changed.
+
+It is a single Python 3.9+ file with no dependencies.
+
+## Install
+
+```bash
+git clone https://github.com/umbra-me/axio-local.git
+ln -s "$PWD/axio-local/lmrun" ~/.local/bin/lmrun
+```
+
+The server is anything that serves `/v1/models`, `/v1/chat/completions`,
+`/v1/responses` and `/v1/messages`. [oMLX](https://github.com/jundot/omlx) on
+Apple silicon is the reference setup; see `docs/omlx.md`.
+
+## Use
+
+```bash
+lmrun status                      # server reachability, which models are served
+lmrun claude                      # Claude Code on the orchestrator model
+lmrun codex exec "..."            # Codex on the worker model over the Responses API
+lmrun opencode                    # OpenCode, orchestrator + small_model = worker
+lmrun pi -p "..."                 # Pi
+lmrun axio                        # Axio itself, openai-compatible provider
+lmrun shell                       # a subshell; anything started in it inherits the env
+eval "$(lmrun env)"               # the same env in the current shell
+```
+
+Options go before the harness name:
+
+| Option | Effect |
+| --- | --- |
+| `-o MODEL`, `--orchestrator MODEL` | the main model for this launch |
+| `-w MODEL`, `--worker MODEL` | the model subagents and light tasks use |
+| `--url URL` | server base URL; otherwise auto-detected |
+| `--shared` | use the real configuration directory instead of an isolated one; restore on exit still applies |
+| `--reseed` | re-copy `CLAUDE.md`, settings, skills, agents, and `AGENTS.md` into the isolated home |
+| `--dry-run` | print the environment and generated configuration, launch nothing |
+
+Two roles, because a dense model that is best at planning and a sparse model
+that is fastest under concurrency are rarely the same file. Claude Code maps
+`opus` and `sonnet` to the orchestrator and `haiku` plus every subagent to the
+worker; OpenCode uses the worker as its `small_model`; Codex, Pi, and Axio are
+single-model and take the worker or orchestrator respectively.
+
+## What it protects
+
+Each harness has its own way to relocate its home, and the launcher uses it:
+
+| Harness | Relocation | Generated in the isolated home |
+| --- | --- | --- |
+| Claude Code | `CLAUDE_CONFIG_DIR` | `.claude.json` with onboarding marked complete; `CLAUDE.md`, `settings.json`, `skills/`, `agents/`, `commands/` copied from the real home on first run |
+| Codex | `CODEX_HOME` | `config.toml` with an `omlx` provider on the Responses wire; `AGENTS.md` copied |
+| OpenCode | `OPENCODE_CONFIG` | `opencode.json` with the provider and both models; the real global config still merges underneath, read-only |
+| Pi | `PI_CODING_AGENT_DIR` | `models.json` with the provider and both models |
+| Axio | `AXIO_HOME` | `config.toml` with `[model] provider = "openai-compatible"` |
+
+Isolated homes live under `~/.config/lmrun/homes/<harness>`; `lmrun reset
+<harness>` deletes one.
+
+Before every launch the real configuration files the harness could touch are
+hashed and copied to `~/.config/lmrun/snapshots/<timestamp>-<harness>`. On
+exit, including Ctrl+C, SIGTERM and SIGHUP, any file whose hash changed is
+restored from the snapshot and named on stderr. The last ten snapshots are
+kept. `lmrun snapshots` lists them.
+
+The launcher runs the agent as a child process and ignores SIGINT itself, so
+Ctrl+C reaches only the agent and the launcher survives to do the restore.
+
+## Configuration
+
+`~/.config/lmrun/config.json`, written with defaults on first run:
+
+```json
+{
+  "url": null,
+  "token": "local",
+  "orchestrator": "Jundot--Qwen3.8-27B-oQ4e-mtp",
+  "worker": "gpt-oss-120b-MXFP4-Q8",
+  "codex_model": "gpt-oss-120b-MXFP4-Q8",
+  "context_window": 131072,
+  "max_output": 32768,
+  "keep_snapshots": 10
+}
+```
+
+`url: null` means auto-detect: `127.0.0.1:8000` first, then `host.internal`
+and `host.orb.internal` for a VM or container whose host runs the server.
+`LMRUN_URL` overrides both. On macOS, when the server is local and
+`~/.omlx/start.sh` exists, a launch starts it if it is down.
+
+Model names must match what the server reports from `/v1/models`; a launch
+warns when a configured role names a model the server does not serve.
+
+## Status
+
+Verified on 2026-09-03 against oMLX 0.6.4 on an M5 Max: every harness above
+launched, used a tool, and exited with its real configuration verified
+untouched; the shared mode restore and the tamper restore were exercised
+deliberately. Codex used the Responses API. Claude Code was verified inside an
+OrbStack Ubuntu VM reaching the host server at `host.internal`, and routed a
+parallel fan-out of three subagents to the worker model.
+
+## License
+
+Apache-2.0. See `LICENSE` and `NOTICE`.
