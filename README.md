@@ -3,7 +3,7 @@
 Run any coding agent against models served on your own machine, without
 touching the agent's real configuration.
 
-`lmrun` launches Claude Code, Codex, OpenCode, Pi, or Axio with an isolated
+`axio-local` launches Claude Code, Codex, OpenCode, Pi, or Axio with an isolated
 configuration home and the environment variables that point it at a local
 OpenAI- and Anthropic-compatible server. When the agent exits, the launcher
 verifies that the agent's real configuration files are byte-identical to how it
@@ -17,7 +17,7 @@ It is a single Rust binary with no runtime dependencies.
 cargo install --git https://github.com/umbra-me/axio-local --locked
 ```
 
-or from a clone, `cargo install --path . --locked`. Either puts `lmrun` in
+or from a clone, `cargo install --path . --locked`. Either puts `axio-local` in
 `~/.cargo/bin`.
 
 The server is anything that serves `/v1/models`, `/v1/chat/completions`,
@@ -27,15 +27,15 @@ Apple silicon is the reference setup; see `docs/omlx.md`.
 ## Use
 
 ```bash
-lmrun status                      # server reachability, which models are served
-lmrun claude                      # Claude Code on the orchestrator model
-lmrun codex exec "..."            # Codex on the worker model over the Responses API
-lmrun opencode                    # OpenCode, orchestrator + small_model = worker
-lmrun pi -p "..."                 # Pi
-lmrun axio                        # Axio itself, openai-compatible provider
-lmrun shell                       # a subshell; anything started in it inherits the env
-lmrun shell 'aider --model x'     # or run one command in that env
-eval "$(lmrun env)"               # the same env in the current shell
+axio-local status                      # server reachability, which models are served
+axio-local claude                      # Claude Code on the orchestrator model
+axio-local codex exec "..."            # Codex on the worker model over the Responses API
+axio-local opencode                    # OpenCode, orchestrator + small_model = worker
+axio-local pi -p "..."                 # Pi
+axio-local axio                        # Axio itself, openai-compatible provider
+axio-local shell                       # a subshell; anything started in it inherits the env
+axio-local shell 'aider --model x'     # or run one command in that env
+eval "$(axio-local env)"               # the same env in the current shell
 ```
 
 Options go before the harness name; everything after it is passed through:
@@ -68,14 +68,14 @@ Each harness has its own way to relocate its home, and the launcher uses it:
 | Pi | `PI_CODING_AGENT_DIR` | `models.json` with the provider and both models |
 | Axio | `AXIO_HOME` | `config.toml` with `[model] provider = "openai-compatible"` |
 
-Isolated homes live under `~/.config/lmrun/homes/<harness>`; `lmrun reset
+Isolated homes live under `~/.config/lmrun/homes/<harness>`; `axio-local reset
 <harness>` deletes one.
 
 Before every launch the real configuration files the harness could touch are
 hashed and copied to `~/.config/lmrun/snapshots/<timestamp>-<harness>`. On
 exit, including Ctrl+C, SIGTERM and SIGHUP, any file whose hash changed or
 that disappeared is restored from the snapshot and named on stderr. The last
-ten snapshots are kept. `lmrun snapshots` lists them.
+ten snapshots are kept. `axio-local snapshots` lists them.
 
 The launcher runs the agent as a child process and installs its own SIGINT
 handler, so Ctrl+C reaches the agent and the launcher survives to do the

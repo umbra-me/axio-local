@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-/// Where everything lmrun owns lives. Nothing is ever written outside `base`
+/// Where everything axio-local owns lives. Nothing is ever written outside `base`
 /// except the snapshot restore, which writes back to the files it copied.
 #[derive(Debug, Clone)]
 pub struct Paths {
@@ -84,7 +84,7 @@ impl Config {
         }
         std::fs::write(path, serde_json::to_string_pretty(&config)? + "\n")
             .with_context(|| format!("writing {}", path.display()))?;
-        eprintln!("lmrun: wrote default config to {}", path.display());
+        eprintln!("axio-local: wrote default config to {}", path.display());
         Ok(config)
     }
 }

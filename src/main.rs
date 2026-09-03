@@ -1,4 +1,4 @@
-//! lmrun: launch coding agents against local models without touching their real configs.
+//! axio-local: launch coding agents against local models without touching their real configs.
 
 mod config;
 mod guard;
@@ -33,7 +33,7 @@ const ENV_PREFIXES: [&str; 12] = [
 
 #[derive(Parser)]
 #[command(
-    name = "lmrun",
+    name = "axio-local",
     version,
     about = "Run coding agents on local models without touching their real configs.",
     long_about = "Each harness runs with an isolated configuration home plus process-scoped \
@@ -97,7 +97,7 @@ enum Cmd {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<OsString>,
     },
-    /// Print export lines: eval "$(lmrun env)"
+    /// Print export lines: eval "$(axio-local env)"
     Env,
     /// Server reachability and which models it serves
     Status,
@@ -115,7 +115,7 @@ fn main() -> ExitCode {
     match run() {
         Ok(code) => code,
         Err(err) => {
-            eprintln!("lmrun: {err:#}");
+            eprintln!("axio-local: {err:#}");
             ExitCode::from(2)
         }
     }
@@ -183,7 +183,7 @@ fn launch_harness(
     if !opts.dry_run {
         if !server::ensure_running(&url, &paths.home) {
             bail!(
-                "no model server reachable at {url} (start it with: lmrun serve, or set --url / LMRUN_URL)"
+                "no model server reachable at {url} (start it with: axio-local serve, or set --url / LMRUN_URL)"
             );
         }
         let served = server::models(&url).unwrap_or_default();
@@ -193,7 +193,7 @@ fn launch_harness(
         ] {
             if !served.iter().any(|m| m == model) {
                 eprintln!(
-                    "lmrun: WARNING: {role} model {model:?} is not served by {url} (available: {})",
+                    "axio-local: WARNING: {role} model {model:?} is not served by {url} (available: {})",
                     if served.is_empty() {
                         "none".to_string()
                     } else {
@@ -219,10 +219,10 @@ fn launch_harness(
     };
     let launch = harness::build(harness, &ctx)?;
     for note in &launch.notes {
-        eprintln!("lmrun: {note}");
+        eprintln!("axio-local: {note}");
     }
     eprintln!(
-        "lmrun: server={url}  orchestrator={}  worker={}  mode={}",
+        "axio-local: server={url}  orchestrator={}  worker={}  mode={}",
         opts.orchestrator,
         opts.worker,
         if opts.shared {
@@ -232,7 +232,7 @@ fn launch_harness(
         }
     );
 
-    // `lmrun shell 'cmd'` runs the command through the shell instead of opening one.
+    // `axio-local shell 'cmd'` runs the command through the shell instead of opening one.
     let (extra, args): (Vec<String>, Vec<OsString>) =
         if harness == Harness::Shell && !args.is_empty() {
             let joined = args
@@ -268,7 +268,7 @@ fn launch_harness(
     guard.take()?;
     if opts.shared {
         eprintln!(
-            "lmrun: SHARED mode: the real config dir is in use; it will be restored from {} on exit",
+            "axio-local: SHARED mode: the real config dir is in use; it will be restored from {} on exit",
             guard.snapshot.display()
         );
     }
@@ -285,12 +285,12 @@ fn report(guard: &Guard) {
     let outcome = guard.restore();
     if !outcome.restored.is_empty() {
         eprintln!(
-            "lmrun: RESTORED {} real config file(s) the harness modified:",
+            "axio-local: RESTORED {} real config file(s) the harness modified:",
             outcome.restored.len()
         );
         for p in &outcome.restored {
             eprintln!(
-                "lmrun:   {}  (snapshot kept in {})",
+                "axio-local:   {}  (snapshot kept in {})",
                 p.display(),
                 guard.snapshot.display()
             );
@@ -303,13 +303,13 @@ fn report(guard: &Guard) {
             .map(|p| p.display().to_string())
             .collect();
         eprintln!(
-            "lmrun: note: new file(s) appeared in real config dirs (left in place): {}",
+            "axio-local: note: new file(s) appeared in real config dirs (left in place): {}",
             names.join(", ")
         );
     }
     if outcome.restored.is_empty() && outcome.created.is_empty() {
         eprintln!(
-            "lmrun: real configs untouched ({} file(s) verified)",
+            "axio-local: real configs untouched ({} file(s) verified)",
             outcome.verified
         );
     }

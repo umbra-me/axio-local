@@ -21,4 +21,4 @@ jobs:
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --locked
       - run: cargo build --release --locked
-      - run: ./target/release/lmrun --help
+      - run: ./target/release/axio-local --help

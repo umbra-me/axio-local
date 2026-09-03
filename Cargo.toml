@@ -7,12 +7,12 @@ license = "Apache-2.0"
 repository = "https://github.com/umbra-me/axio-local"
 homepage = "https://github.com/umbra-me/axio-local"
 readme = "README.md"
-description = "lmrun: run coding agents on local models without touching their real configs."
+description = "axio-local: run coding agents on local models without touching their real configs."
 keywords = ["agent", "llm", "cli", "local-models"]
 categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
-name = "lmrun"
+name = "axio-local"
 path = "src/main.rs"
 
 [dependencies]

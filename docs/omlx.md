@@ -1,6 +1,6 @@
 # Reference server: oMLX on Apple silicon
 
-`lmrun` needs a server that speaks `/v1/models`, `/v1/chat/completions`,
+`axio-local` needs a server that speaks `/v1/models`, `/v1/chat/completions`,
 `/v1/responses` and `/v1/messages`. This is the setup it was built and
 verified against on 2026-09-03: a MacBook Pro M5 Max with 128 GB of unified
 memory, macOS 27, and [oMLX](https://github.com/jundot/omlx) 0.6.4.

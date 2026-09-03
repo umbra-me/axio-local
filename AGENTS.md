@@ -1,4 +1,4 @@
-# Axio Local (crate: `axio-local`, binary: `lmrun`)
+# Axio Local (crate and binary: `axio-local`)
 
 A Rust CLI that launches a coding agent against a local model server with an
 isolated configuration home and restores the agent's real configuration on
@@ -11,17 +11,17 @@ a workstation and deploys nothing, like Deck, Analyst and Capture.
 cargo fmt --all -- --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked                                   # unit tests; no network, no agents
-cargo build --release --locked                        # target/release/lmrun
-cargo install --path . --locked                       # ~/.cargo/bin/lmrun
-lmrun --dry-run <harness>                             # env + generated config, launches nothing
-lmrun status                                          # is a server up, which models does it serve
+cargo build --release --locked                        # target/release/axio-local
+cargo install --path . --locked                       # ~/.cargo/bin/axio-local
+axio-local --dry-run <harness>                             # env + generated config, launches nothing
+axio-local status                                          # is a server up, which models does it serve
 ```
 
 CI (`.github/workflows/ci.yml`) runs exactly the first four on Ubuntu and
 macOS. Verification beyond the tests is the launch matrix in `README.md` under
 Status: run each harness, confirm it used a tool, and confirm the closing
 `real configs untouched` line. The restore path is exercised with
-`lmrun shell 'echo x >> ~/.pi/agent/models.json'`, which must end with a
+`axio-local shell 'echo x >> ~/.pi/agent/models.json'`, which must end with a
 `RESTORED` line and a byte-identical file.
 
 ## Architecture

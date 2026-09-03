@@ -111,7 +111,7 @@ impl Guard {
                         outcome.restored.push(path.clone());
                     } else {
                         eprintln!(
-                            "lmrun: FAILED to restore {} from {}",
+                            "axio-local: FAILED to restore {} from {}",
                             path.display(),
                             copy.display()
                         );

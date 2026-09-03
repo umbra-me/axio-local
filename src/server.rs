@@ -82,7 +82,7 @@ pub fn ensure_running(url: &str, home: &Path) -> bool {
         return false;
     }
     eprintln!(
-        "lmrun: oMLX not running, starting it via {}",
+        "axio-local: oMLX not running, starting it via {}",
         script.display()
     );
     let log = home.join(".omlx").join("server.log");
