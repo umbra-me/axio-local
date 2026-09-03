@@ -9,14 +9,16 @@ OpenAI- and Anthropic-compatible server. When the agent exits, the launcher
 verifies that the agent's real configuration files are byte-identical to how it
 found them, and restores any that changed.
 
-It is a single Python 3.9+ file with no dependencies.
+It is a single Rust binary with no runtime dependencies.
 
 ## Install
 
 ```bash
-git clone https://github.com/umbra-me/axio-local.git
-ln -s "$PWD/axio-local/lmrun" ~/.local/bin/lmrun
+cargo install --git https://github.com/umbra-me/axio-local --locked
 ```
+
+or from a clone, `cargo install --path . --locked`. Either puts `lmrun` in
+`~/.cargo/bin`.
 
 The server is anything that serves `/v1/models`, `/v1/chat/completions`,
 `/v1/responses` and `/v1/messages`. [oMLX](https://github.com/jundot/omlx) on
@@ -32,10 +34,11 @@ lmrun opencode                    # OpenCode, orchestrator + small_model = worke
 lmrun pi -p "..."                 # Pi
 lmrun axio                        # Axio itself, openai-compatible provider
 lmrun shell                       # a subshell; anything started in it inherits the env
+lmrun shell 'aider --model x'     # or run one command in that env
 eval "$(lmrun env)"               # the same env in the current shell
 ```
 
-Options go before the harness name:
+Options go before the harness name; everything after it is passed through:
 
 | Option | Effect |
 | --- | --- |
@@ -48,9 +51,10 @@ Options go before the harness name:
 
 Two roles, because a dense model that is best at planning and a sparse model
 that is fastest under concurrency are rarely the same file. Claude Code maps
-`opus` and `sonnet` to the orchestrator and `haiku` plus every subagent to the
-worker; OpenCode uses the worker as its `small_model`; Codex, Pi, and Axio are
-single-model and take the worker or orchestrator respectively.
+`opus`, `sonnet` and `fable` to the orchestrator and `haiku` plus every
+subagent to the worker; OpenCode uses the worker as its `small_model`; Codex,
+Pi, and Axio are single-model and take the worker or orchestrator
+respectively.
 
 ## What it protects
 
@@ -69,12 +73,13 @@ Isolated homes live under `~/.config/lmrun/homes/<harness>`; `lmrun reset
 
 Before every launch the real configuration files the harness could touch are
 hashed and copied to `~/.config/lmrun/snapshots/<timestamp>-<harness>`. On
-exit, including Ctrl+C, SIGTERM and SIGHUP, any file whose hash changed is
-restored from the snapshot and named on stderr. The last ten snapshots are
-kept. `lmrun snapshots` lists them.
+exit, including Ctrl+C, SIGTERM and SIGHUP, any file whose hash changed or
+that disappeared is restored from the snapshot and named on stderr. The last
+ten snapshots are kept. `lmrun snapshots` lists them.
 
-The launcher runs the agent as a child process and ignores SIGINT itself, so
-Ctrl+C reaches only the agent and the launcher survives to do the restore.
+The launcher runs the agent as a child process and installs its own SIGINT
+handler, so Ctrl+C reaches the agent and the launcher survives to do the
+restore. SIGTERM and SIGHUP are forwarded to the agent once.
 
 ## Configuration
 
@@ -93,13 +98,27 @@ Ctrl+C reaches only the agent and the launcher survives to do the restore.
 }
 ```
 
-`url: null` means auto-detect: `127.0.0.1:8000` first, then `host.internal`
-and `host.orb.internal` for a VM or container whose host runs the server.
-`LMRUN_URL` overrides both. On macOS, when the server is local and
-`~/.omlx/start.sh` exists, a launch starts it if it is down.
+`url: null` means auto-detect: `127.0.0.1:8000` first, then `host.internal`,
+`host.orb.internal` and `host.docker.internal` for a VM or container whose
+host runs the server. `LMRUN_URL` overrides both. On macOS, when the server is
+local and `~/.omlx/start.sh` exists, a launch starts it if it is down.
 
 Model names must match what the server reports from `/v1/models`; a launch
 warns when a configured role names a model the server does not serve.
+
+## Development
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets --locked -- -D warnings
+cargo test --locked
+cargo build --release --locked
+```
+
+Unit tests cover the config file, URL detection, every harness builder, and
+the snapshot guard's restore, resurrect and prune paths. What they cannot
+cover is a real agent talking to a real server; that is the launch matrix
+under Status.
 
 ## Status
 

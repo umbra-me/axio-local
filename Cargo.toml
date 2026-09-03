@@ -1,0 +1,38 @@
+[package]
+name = "axio-local"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "Apache-2.0"
+repository = "https://github.com/umbra-me/axio-local"
+homepage = "https://github.com/umbra-me/axio-local"
+readme = "README.md"
+description = "lmrun: run coding agents on local models without touching their real configs."
+keywords = ["agent", "llm", "cli", "local-models"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "lmrun"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+clap = { version = "4.6.2", default-features = false, features = ["std", "help", "usage", "error-context", "derive"] }
+libc = "0.2.180"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+sha2 = "0.10.9"
+signal-hook = "0.3.18"
+# Plain HTTP to a server on this machine or its host; no TLS stack.
+ureq = { version = "3.1.2", default-features = false, features = ["json"] }
+time = { version = "0.3.54", default-features = false, features = ["std", "formatting", "macros"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"
+
+[profile.dev]
+debug = 1
+
+[profile.release]
+lto = "thin"
+strip = "debuginfo"
