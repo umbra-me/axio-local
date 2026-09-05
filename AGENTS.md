@@ -54,6 +54,9 @@ Status: run each harness, confirm it used a tool, and confirm the closing
   `~/.omlx/start.sh` when the URL is local and nothing answers.
 - Model roles are `orchestrator` and `worker`. Every harness-specific mapping
   derives from those two names; nothing is hard-coded per model.
+- `--profile NAME` selects server and model roles from `config.json` profiles.
+  `Opts::url` normalizes the selected endpoint before API paths are appended;
+  explicit `--url` wins over a profile, which wins over `LMRUN_URL`.
 - TOML for Codex and Axio is emitted as a string on purpose: two files, a
   handful of keys, and a `toml` dependency would be the largest thing in the
   crate.

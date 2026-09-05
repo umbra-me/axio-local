@@ -4,6 +4,7 @@ mod config;
 mod guard;
 mod harness;
 mod launch;
+mod locks;
 mod server;
 
 use std::ffi::OsString;
@@ -43,6 +44,9 @@ Options go before the harness name; everything after it is passed through.",
     after_help = "Config: ~/.config/lmrun/config.json    Env override: LMRUN_URL"
 )]
 struct Cli {
+    /// Named local server/model profile from config.json
+    #[arg(long, global = true)]
+    profile: Option<String>,
     /// The main model for this launch (default from config)
     #[arg(short = 'o', long, global = true, value_name = "MODEL")]
     orchestrator: Option<String>,
@@ -124,7 +128,10 @@ fn main() -> ExitCode {
 fn run() -> Result<ExitCode> {
     let cli = Cli::parse();
     let paths = Paths::discover()?;
-    let config = Config::load_or_init(&paths.config)?;
+    let mut config = Config::load_or_init(&paths.config)?;
+    if let Some(name) = &cli.profile {
+        config.apply_profile(name)?;
+    }
     let opts = Opts {
         orchestrator: cli
             .orchestrator
@@ -134,7 +141,8 @@ fn run() -> Result<ExitCode> {
         url: cli
             .url
             .as_deref()
-            .map(|u| u.trim_end_matches('/').to_string()),
+            .map(|u| u.trim_end_matches('/').to_string())
+            .or_else(|| cli.profile.as_ref().and(config.url.clone())),
         shared: cli.shared,
         reseed: cli.reseed,
         dry_run: cli.dry_run,
@@ -169,6 +177,8 @@ impl Opts {
         self.url
             .clone()
             .unwrap_or_else(|| server::detect_url(config))
+            .trim_end_matches('/')
+            .to_string()
     }
 }
 
@@ -207,6 +217,8 @@ fn launch_harness(
         bail!("{} is not on PATH", harness.name());
     };
     let home = paths.harness_home(harness.name());
+    let _locks =
+        locks::LaunchLocks::acquire(&paths.home, &paths.snapshots, &home, harness.protected())?;
     let ctx = harness::Context {
         url: &url,
         config,
@@ -273,7 +285,7 @@ fn launch_harness(
         );
     }
     let status = launch::run(&program, &extra, &args, &launch);
-    report(&guard);
+    report(&guard)?;
     let status = status?;
     Ok(status
         .code()
@@ -281,8 +293,15 @@ fn launch_harness(
         .unwrap_or(ExitCode::from(1)))
 }
 
-fn report(guard: &Guard) {
+fn report(guard: &Guard) -> Result<()> {
     let outcome = guard.restore();
+    if !outcome.failed.is_empty() {
+        bail!(
+            "recovery failed for {} file(s); snapshot retained at {}",
+            outcome.failed.len(),
+            guard.snapshot.display()
+        );
+    }
     if !outcome.restored.is_empty() {
         eprintln!(
             "axio-local: RESTORED {} real config file(s) the harness modified:",
@@ -313,6 +332,7 @@ fn report(guard: &Guard) {
             outcome.verified
         );
     }
+    Ok(())
 }
 
 fn dry_run(
@@ -472,4 +492,54 @@ fn snapshots(paths: &Paths) -> Result<ExitCode> {
         println!("{}", d.display());
     }
     Ok(ExitCode::SUCCESS)
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+    #[test]
+    fn profile_endpoint_is_normalized_before_appending_api_paths() {
+        let mut config = Config::default();
+        config.profiles.insert(
+            "workstation".into(),
+            config::Profile {
+                url: "http://localhost:9000/proxy/".into(),
+                orchestrator: "planner".into(),
+                worker: "worker".into(),
+            },
+        );
+        config.apply_profile("workstation").unwrap();
+        let mut opts = Opts {
+            orchestrator: config.orchestrator.clone(),
+            worker: config.worker.clone(),
+            url: config.url.clone(),
+            shared: false,
+            reseed: false,
+            dry_run: true,
+        };
+        assert_eq!(
+            format!("{}/v1/models", opts.url(&config)),
+            "http://localhost:9000/proxy/v1/models"
+        );
+        opts.url = Some("http://localhost:8000/".into());
+        assert_eq!(opts.url(&config), "http://localhost:8000");
+    }
+
+    #[test]
+    fn failed_recovery_returns_an_error_to_the_exit_path() {
+        let d = tempfile::tempdir().unwrap();
+        let config = d.path().join("config");
+        std::fs::write(&config, "original").unwrap();
+        let mut guard = Guard::new(
+            d.path(),
+            &d.path().join("snapshots"),
+            "test",
+            &["config"],
+            10,
+        );
+        guard.take().unwrap();
+        std::fs::write(&config, "changed").unwrap();
+        std::fs::remove_file(guard.snapshot.join("config")).unwrap();
+        assert!(report(&guard).is_err());
+    }
 }

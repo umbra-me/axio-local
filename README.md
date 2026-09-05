@@ -1,5 +1,7 @@
 # Axio Local
 
+Current source changes and verification gates: [September 5 change set](docs/change-set-2026-09-05.md).
+
 Run any coding agent against models served on your own machine, without
 touching the agent's real configuration.
 
@@ -44,6 +46,7 @@ Options go before the harness name; everything after it is passed through:
 | --- | --- |
 | `-o MODEL`, `--orchestrator MODEL` | the main model for this launch |
 | `-w MODEL`, `--worker MODEL` | the model subagents and light tasks use |
+| `--profile NAME` | named server/model profile from config.json |
 | `--url URL` | server base URL; otherwise auto-detected |
 | `--shared` | use the real configuration directory instead of an isolated one; restore on exit still applies |
 | `--reseed` | re-copy `CLAUDE.md`, settings, skills, agents, and `AGENTS.md` into the isolated home |
@@ -72,10 +75,11 @@ Isolated homes live under `~/.config/lmrun/homes/<harness>`; `axio-local reset
 <harness>` deletes one.
 
 Before every launch the real configuration files the harness could touch are
-hashed and copied to `~/.config/lmrun/snapshots/<timestamp>-<harness>`. On
+hashed and copied to `~/.config/lmrun/snapshots/<timestamp>-<harness>-<pid>-<counter>`. On
 exit, including Ctrl+C, SIGTERM and SIGHUP, any file whose hash changed or
 that disappeared is restored from the snapshot and named on stderr. The last
-ten snapshots are kept. `axio-local snapshots` lists them.
+ten completed snapshots are kept; failed and pending snapshots are retained.
+Restore failures return a nonzero exit status and identify the retained backup. `axio-local snapshots` lists them.
 
 The launcher runs the agent as a child process and installs its own SIGINT
 handler, so Ctrl+C reaches the agent and the launcher survives to do the
@@ -105,6 +109,12 @@ local and `~/.omlx/start.sh` exists, a launch starts it if it is down.
 
 Model names must match what the server reports from `/v1/models`; a launch
 warns when a configured role names a model the server does not serve.
+
+Use `--profile NAME` before the harness to select an entry in the optional
+`profiles` object. Each entry supplies `url`, `orchestrator`, and `worker`;
+the worker also becomes the Codex model. Explicit `--url` takes precedence
+over the profile, and a selected profile takes precedence over `LMRUN_URL`.
+Trailing slashes are removed from the chosen URL before API paths are appended.
 
 ## Development
 

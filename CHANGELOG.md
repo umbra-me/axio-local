@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- September 5: Verified recovery failures, unique/private snapshots, overlapping-launch locks, named profiles and normalized profile URLs. See [change set](docs/change-set-2026-09-05.md).
+
 - Rename the binary from `lmrun` to `axio-local`. The `LMRUN_*` environment
   variables and the `~/.config/lmrun` directory keep their names for now.
 - Rewrite the launcher as a Rust crate with the same behaviour as the Python

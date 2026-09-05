@@ -1,5 +1,6 @@
 //! `~/.config/lmrun/config.json` and the directory layout around it.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -52,6 +53,34 @@ pub struct Config {
     pub context_window: u64,
     pub max_output: u64,
     pub keep_snapshots: usize,
+    pub profiles: BTreeMap<String, Profile>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Profile {
+    pub url: String,
+    pub orchestrator: String,
+    pub worker: String,
+}
+
+impl Config {
+    pub fn apply_profile(&mut self, name: &str) -> Result<()> {
+        let profile = self.profiles.get(name).with_context(|| {
+            format!("unknown local profile {name:?}; define it in profiles in config.json")
+        })?;
+        anyhow::ensure!(
+            profile.url.starts_with("http://")
+                && !profile.orchestrator.trim().is_empty()
+                && !profile.worker.trim().is_empty(),
+            "profile requires an HTTP URL and both model roles"
+        );
+        self.url = Some(profile.url.clone());
+        self.orchestrator = profile.orchestrator.clone();
+        self.worker = profile.worker.clone();
+        self.codex_model = profile.worker.clone();
+        Ok(())
+    }
 }
 
 impl Default for Config {
@@ -65,6 +94,7 @@ impl Default for Config {
             context_window: 131_072,
             max_output: 32_768,
             keep_snapshots: 10,
+            profiles: BTreeMap::new(),
         }
     }
 }
@@ -92,6 +122,25 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn named_profiles_select_all_roles_and_unknown_names_fail() {
+        let mut config = Config::default();
+        config.profiles.insert(
+            "workstation".into(),
+            Profile {
+                url: "http://localhost:9000".into(),
+                orchestrator: "planner".into(),
+                worker: "worker".into(),
+            },
+        );
+        config.apply_profile("workstation").unwrap();
+        assert_eq!(config.url.as_deref(), Some("http://localhost:9000"));
+        assert_eq!(config.orchestrator, "planner");
+        assert_eq!(config.worker, "worker");
+        assert_eq!(config.codex_model, "worker");
+        assert!(config.apply_profile("missing").is_err());
+    }
 
     #[test]
     fn missing_config_is_written_with_defaults_and_reloads_identically() {
