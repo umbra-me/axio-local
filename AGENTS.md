@@ -81,3 +81,7 @@ Status: run each harness, confirm it used a tool, and confirm the closing
 - `README.md`, the clap help text and this file describe the same options and
   harnesses.
 - Do not commit, push, tag, or release unless asked.
+
+## Independent development
+
+Rust 1.98.1 is pinned in rust-toolchain.toml and CI. Run the commands above from this repository; no parent workspace is required. The optional umbra.dev.yaml recipe invokes these commands. Unit tests do not establish the native harness launch matrix. Do not run real agents or mutate real configuration homes during source-only migration checks.
