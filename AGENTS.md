@@ -85,3 +85,10 @@ Status: run each harness, confirm it used a tool, and confirm the closing
 ## Independent development
 
 Rust 1.98.1 is pinned in rust-toolchain.toml and CI. Run the commands above from this repository; no parent workspace is required. The optional umbra.dev.yaml recipe invokes these commands. Unit tests do not establish the native harness launch matrix. Do not run real agents or mutate real configuration homes during source-only migration checks.
+
+## Umbra CLI entry point
+
+Read [DEVELOPMENT.md](DEVELOPMENT.md) for this repository's exact Umbra CLI
+source actions and routed-preview availability. Use its stable component ID
+`axio/local`; installs remain in the owned recipe's install root. Preserve
+all existing native, provider, data, publication and production constraints.
