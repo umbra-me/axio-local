@@ -81,3 +81,10 @@ Status: run each harness, confirm it used a tool, and confirm the closing
 - `README.md`, the clap help text and this file describe the same options and
   harnesses.
 - Do not commit, push, tag, or release unless asked.
+
+## Umbra CLI entry point
+
+Read [DEVELOPMENT.md](DEVELOPMENT.md) for this repository's exact Umbra CLI
+source actions and routed-preview availability. Use its stable component ID
+`axio/local`; installs remain in the owned recipe's install root. Preserve
+all existing native, provider, data, publication and production constraints.
