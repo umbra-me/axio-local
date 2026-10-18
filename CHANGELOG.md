@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `env` and `--dry-run` print every value as a POSIX single-quoted word, so
+  `eval "$(axio-local env)"` can no longer run a `$(...)` or backtick that
+  sits in config.json or a command-line model name. Values used to be JSON
+  strings, which a shell expands inside double quotes.
+- `reset` takes the same lock a launch holds on its isolated home and
+  refuses while that harness is running, instead of deleting the home from
+  under it.
+
 - September 5: Verified recovery failures, unique/private snapshots, overlapping-launch locks, named profiles and normalized profile URLs. See [change set](docs/change-set-2026-09-05.md).
 
 - Rename the binary from `lmrun` to `axio-local`. The `LMRUN_*` environment

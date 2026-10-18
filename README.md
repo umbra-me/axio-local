@@ -72,7 +72,7 @@ Each harness has its own way to relocate its home, and the launcher uses it:
 | Axio | `AXIO_HOME` | `config.toml` with `[model] provider = "openai-compatible"` |
 
 Isolated homes live under `~/.config/lmrun/homes/<harness>`; `axio-local reset
-<harness>` deletes one.
+<harness>` deletes one, and refuses while that harness is running.
 
 Before every launch the real configuration files the harness could touch are
 hashed and copied to `~/.config/lmrun/snapshots/<timestamp>-<harness>-<pid>-<counter>`. On

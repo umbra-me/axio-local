@@ -40,6 +40,13 @@ Status: run each harness, confirm it used a tool, and confirm the closing
   `PI_CODING_AGENT_DIR`, `AXIO_HOME`). Builders never write into a real
   configuration directory; generated files go under
   `~/.config/lmrun/homes/<harness>`.
+- `env` and `--dry-run` print through `export_lines`, which quotes every
+  value with `shell_quote` (POSIX single quotes) because the output is meant
+  for `eval` and the values come from config.json and the command line.
+  Never format a value into shell text any other way.
+- `src/locks.rs` holds one flock per protected file and per isolated home
+  for the whole launch; `reset` takes the home's lock too, so it fails
+  while that harness runs.
 - `src/guard.rs` is the safety net: hash and copy `protected` files before
   launch, rehash after, restore on mismatch or deletion. `restore` never
   returns an error, because it runs after the harness exits and a partial

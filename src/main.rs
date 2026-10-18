@@ -10,7 +10,7 @@ mod server;
 use std::ffi::OsString;
 use std::process::ExitCode;
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 
 use config::{Config, Paths};
@@ -351,12 +351,8 @@ fn dry_run(
     for key in &launch.unset {
         println!("unset {key}");
     }
-    let mut env = launch.env.clone();
-    env.sort();
-    for (key, value) in env {
-        if ENV_PREFIXES.iter().any(|p| key.starts_with(p)) {
-            println!("export {key}={}", serde_json::to_string(&value)?);
-        }
+    for line in export_lines(launch, &ENV_PREFIXES) {
+        println!("{line}");
     }
     if !shared {
         for name in harness.generated_files() {
@@ -383,27 +379,42 @@ fn env(opts: &Opts, config: &Config, paths: &Paths) -> Result<ExitCode> {
         reseed: false,
     };
     let launch = harness::build(Harness::Claude, &ctx)?;
-    let mut env = launch.env.clone();
-    env.sort();
-    for (key, value) in env {
-        if [
+    for line in export_lines(
+        &launch,
+        &[
             "LMRUN",
             "ANTHROPIC",
             "CLAUDE_CODE",
             "OPENAI",
             "OMLX",
             "DISABLE",
-        ]
-        .iter()
-        .any(|p| key.starts_with(p))
-        {
-            println!("export {key}={}", serde_json::to_string(&value)?);
-        }
+        ],
+    ) {
+        println!("{line}");
     }
     for key in &launch.unset {
         println!("unset {key}");
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// `export` lines, sorted, for the variables whose names start with one of
+/// `prefixes`. The values come from config.json and the command line, and
+/// the output is meant for `eval`, so each one is a single quoted word.
+fn export_lines(launch: &Launch, prefixes: &[&str]) -> Vec<String> {
+    let mut env = launch.env.clone();
+    env.sort();
+    env.into_iter()
+        .filter(|(key, _)| prefixes.iter().any(|p| key.starts_with(p)))
+        .map(|(key, value)| format!("export {key}={}", shell_quote(&value)))
+        .collect()
+}
+
+/// `value` as one POSIX shell word that expands to exactly `value`: nothing
+/// inside single quotes is expanded, and a quote in the value closes the
+/// run, adds an escaped quote and opens a new one.
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r"'\''"))
 }
 
 fn status(opts: &Opts, config: &Config, paths: &Paths) -> Result<ExitCode> {
@@ -472,6 +483,8 @@ fn reset(name: &str, paths: &Paths) -> Result<ExitCode> {
         bail!("unknown harness {name:?}");
     };
     let home = paths.harness_home(h.name());
+    let _lock = reset_lock(&home, paths)
+        .with_context(|| format!("{} is running; close it before a reset", h.name()))?;
     if home.is_dir() {
         std::fs::remove_dir_all(&home)?;
         println!("removed {}", home.display());
@@ -479,6 +492,12 @@ fn reset(name: &str, paths: &Paths) -> Result<ExitCode> {
         println!("nothing to remove at {}", home.display());
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// The lock a launch holds on its home for as long as it runs, so a reset
+/// never deletes a home in use and no launch starts in one being deleted.
+fn reset_lock(home: &std::path::Path, paths: &Paths) -> Result<locks::LaunchLocks> {
+    locks::LaunchLocks::acquire(&paths.home, &paths.snapshots, home, &[])
 }
 
 fn snapshots(paths: &Paths) -> Result<ExitCode> {
@@ -541,5 +560,126 @@ mod recovery_tests {
         std::fs::write(&config, "changed").unwrap();
         std::fs::remove_file(guard.snapshot.join("config")).unwrap();
         assert!(report(&guard).is_err());
+    }
+
+    /// What a POSIX shell makes of a word built only from single-quoted runs
+    /// and `\'`. Anything else in the word would be open to expansion, so it
+    /// is an error here. Nothing is ever handed to a real shell.
+    fn unquote(word: &str) -> std::result::Result<String, String> {
+        let mut out = String::new();
+        let mut chars = word.chars();
+        while let Some(c) = chars.next() {
+            match c {
+                '\'' => loop {
+                    match chars.next() {
+                        Some('\'') => break,
+                        Some(c) => out.push(c),
+                        None => return Err(format!("unterminated quote in {word:?}")),
+                    }
+                },
+                '\\' => match chars.next() {
+                    Some('\'') => out.push('\''),
+                    other => return Err(format!("unexpected escape {other:?} in {word:?}")),
+                },
+                other => return Err(format!("unquoted {other:?} in {word:?}")),
+            }
+        }
+        Ok(out)
+    }
+
+    const HOSTILE: [&str; 12] = [
+        "",
+        "plain",
+        "http://localhost:8000",
+        "$(touch /tmp/axio-local-pwned)",
+        "`touch /tmp/axio-local-pwned`",
+        "${HOME}",
+        "it's",
+        "'; touch /tmp/axio-local-pwned; '",
+        "\"double\" and \\backslash\\",
+        "line one\nline two",
+        "tab\tand !bang and *glob*",
+        "\u{e9}t\u{e9} \u{1f600}",
+    ];
+
+    #[test]
+    fn shell_quoting_round_trips_every_value_literally() {
+        for value in HOSTILE {
+            assert_eq!(unquote(&shell_quote(value)).unwrap(), value);
+        }
+    }
+
+    #[test]
+    fn env_output_keeps_config_values_out_of_the_shell() {
+        let launch = Launch {
+            env: HOSTILE
+                .iter()
+                .enumerate()
+                .map(|(index, value)| (format!("LMRUN_TEST_{index:02}"), value.to_string()))
+                .collect(),
+            ..Launch::default()
+        };
+        let lines = export_lines(&launch, &["LMRUN"]);
+        assert_eq!(lines.len(), HOSTILE.len());
+        for (line, (key, value)) in lines.iter().zip(&launch.env) {
+            let word = line
+                .strip_prefix(&format!("export {key}="))
+                .unwrap_or_else(|| panic!("{line:?}"));
+            assert_eq!(&unquote(word).unwrap(), value);
+        }
+    }
+
+    #[test]
+    fn export_lines_only_print_the_selected_prefixes() {
+        let launch = Launch {
+            env: vec![
+                ("LMRUN_URL".into(), "http://localhost".into()),
+                ("PATH".into(), "/usr/bin".into()),
+            ],
+            ..Launch::default()
+        };
+        assert_eq!(
+            export_lines(&launch, &["LMRUN"]),
+            ["export LMRUN_URL='http://localhost'"]
+        );
+    }
+
+    #[test]
+    fn reset_refuses_a_home_that_a_launch_holds() {
+        let d = tempfile::tempdir().unwrap();
+        let paths = Paths::from_home(d.path().to_path_buf());
+        let home = paths.harness_home("claude");
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(home.join("settings.json"), "{}").unwrap();
+        let held = locks::LaunchLocks::acquire(
+            &paths.home,
+            &paths.snapshots,
+            &home,
+            Harness::Claude.protected(),
+        )
+        .unwrap();
+        assert!(reset("claude", &paths).is_err());
+        assert!(home.join("settings.json").exists());
+        drop(held);
+        reset("claude", &paths).unwrap();
+        assert!(!home.exists());
+    }
+
+    #[test]
+    fn a_launch_cannot_start_while_reset_holds_the_home() {
+        let d = tempfile::tempdir().unwrap();
+        let paths = Paths::from_home(d.path().to_path_buf());
+        let home = paths.harness_home("claude");
+        let held = reset_lock(&home, &paths).unwrap();
+        assert!(
+            locks::LaunchLocks::acquire(
+                &paths.home,
+                &paths.snapshots,
+                &home,
+                Harness::Claude.protected()
+            )
+            .is_err()
+        );
+        drop(held);
     }
 }
