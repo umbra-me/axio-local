@@ -1,6 +1,6 @@
 # Axio Local
 
-Current source changes and verification gates: [September 5 change set](docs/change-set-2026-09-05.md).
+Current source changes and verification gates: [September 5 change set](docs/receipts/2026-09/change-set-2026-09-05.md).
 
 Run any coding agent against models served on your own machine, without
 touching the agent's real configuration.
@@ -24,7 +24,7 @@ or from a clone, `cargo install --path . --locked`. Either puts `axio-local` in
 
 The server is anything that serves `/v1/models`, `/v1/chat/completions`,
 `/v1/responses` and `/v1/messages`. [oMLX](https://github.com/jundot/omlx) on
-Apple silicon is the reference setup; see `docs/omlx.md`.
+Apple silicon is the reference setup; see `docs/development/omlx.md`.
 
 ## Use
 
